@@ -47,7 +47,7 @@ def fields_validate(pet):
     traits = []
     for traits_dicts in traits_data_list:
         traits_name = traits_dicts["name"]
-        trait_object = Trait.objects.filter(name__icontains=traits_name).first()
+        trait_object = Trait.objects.filter(name__contains=traits_name).first()
 
         if not trait_object:
             trait_object = Trait.objects.create(name=traits_name)
@@ -77,8 +77,8 @@ class PetViewId(APIView):
         pet_serializer = PetSerializer(data=request.data, partial=True)
         pet_serializer.is_valid(raise_exception=True)
 
-        # traits_data_list = pet_serializer.validated_data.pop("traits", None)
         group_data: dict = pet_serializer.validated_data.pop("group", None)
+        traits_data: list = pet_serializer.validated_data.pop("traits", None)
 
         if group_data:
 
@@ -94,16 +94,21 @@ class PetViewId(APIView):
                 pet_serializer.validated_data["group"] = group_obj
 
             pet_serializer.validated_data["group"] = group_obj
+            pet.group = pet_serializer.validated_data["group"]
+
+        if traits_data:
+
+            for traits in traits_data:
+                try:
+                    trait_obj = Trait.objects.get(name__contains=traits["name"])
+                    pet.traits.add(trait_obj)
+                except Trait.DoesNotExist:
+                    trait_obj = Trait.objects.create(**traits)
+                    trait_obj.save()
+                    pet.traits.add(trait_obj)
 
         for key, value in pet_serializer.validated_data.items():
             setattr(pet, key, value)
-
-        pet.group = pet_serializer.validated_data["group"]
-
-        
-
-
-
         pet.save()
 
         pet_serializer = PetSerializer(pet)
