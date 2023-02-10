@@ -1,4 +1,4 @@
-from django.shortcuts import render
+from django.shortcuts import render, get_object_or_404
 from django.forms.models import model_to_dict
 from rest_framework.views import APIView, Response, Request, status
 from pets.models import Pet
@@ -6,6 +6,7 @@ from pets.serializer import PetSerializer
 from groups.models import Group
 from traits.models import Trait
 from rest_framework.pagination import PageNumberPagination
+import ipdb
 
 
 class PetView(APIView, PageNumberPagination):
@@ -58,3 +59,61 @@ def fields_validate(pet):
     pet_instance.traits.set(traits)
 
     return pet_instance
+
+
+class PetViewId(APIView):
+    def get(self, request: Request, pet_id: int) -> Response:
+
+        pet = get_object_or_404(Pet, id=pet_id)
+
+        pet_serializer = PetSerializer(pet)
+
+        return Response(pet_serializer.data)
+
+    def patch(self, request: Request, pet_id: int) -> Response:
+
+        pet = get_object_or_404(Pet, id=pet_id)
+
+        pet_serializer = PetSerializer(data=request.data, partial=True)
+        pet_serializer.is_valid(raise_exception=True)
+
+        # traits_data_list = pet_serializer.validated_data.pop("traits", None)
+        group_data: dict = pet_serializer.validated_data.pop("group", None)
+
+        if group_data:
+
+            group_obj = Group.objects.get(pets=pet.id)
+
+            for key, value in group_data.items():
+                setattr(group_obj, key, value)
+
+            group_obj = Group.objects.filter(scientific_name__contains=group_data["scientific_name"]).first()
+
+            if not group_obj:
+                group_obj = Group.objects.create(**group_data)
+                pet_serializer.validated_data["group"] = group_obj
+
+            pet_serializer.validated_data["group"] = group_obj
+
+        for key, value in pet_serializer.validated_data.items():
+            setattr(pet, key, value)
+
+        pet.group = pet_serializer.validated_data["group"]
+
+        
+
+
+
+        pet.save()
+
+        pet_serializer = PetSerializer(pet)
+
+        return Response(pet_serializer.data)
+
+    def delete(self, request: Request, pet_id: int) -> Response:
+
+        pet_delete = get_object_or_404(Pet, id=pet_id)
+
+        pet_delete.delete()
+
+        return Response(None, status.HTTP_204_NO_CONTENT)
