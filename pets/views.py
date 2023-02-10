@@ -11,9 +11,17 @@ import ipdb
 
 class PetView(APIView, PageNumberPagination):
     def get(self, request: Request) -> Response:
+
         pets = Pet.objects.all()
 
-        result_page = self.paginate_queryset(pets, request)
+        pet_params = request.query_params.get("trait", None)
+
+        if pet_params:
+            pets_filtereds = pets.filter(traits__name=pet_params)
+            result_page = self.paginate_queryset(pets_filtereds, request)
+
+        else:
+            result_page = self.paginate_queryset(pets, request)
 
         pets_serializer = PetSerializer(result_page, many=True)
 
